@@ -1,619 +1,425 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Markdown Preview Tool v2</title>
-  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-  <style>
-    /* ==================== Catppuccin Mocha 主题（默认） ==================== */
-    :root {
-      --bg: #1e1e2e; --surface: #181825; --surface2: #313244;
-      --text: #cdd6f4; --subtext: #a6adc8; --muted: #6c7086;
-      --lavender: #cba6f7; --green: #a6e3a1; --blue: #89b4fa;
-      --surface-border: #313244;
-    }
-    /* ==================== 浅色主题 ==================== */
-    body.theme-light {
-      --bg: #eff1f5; --surface: #e6e9ef; --surface2: #ccd0da;
-      --text: #4c4f69; --subtext: #5c5f77; --muted: #9ca0b0;
-      --lavender: #7287f7; --green: #40a02b; --blue: #1e66f5;
-      --surface-border: #ccd0da;
-    }
-    /* ==================== 绿光主题 ==================== */
-    body.theme-green {
-      --bg: #0d1117; --surface: #161b22; --surface2: #21262d;
-      --text: #7ee787; --subtext: #8b949e; --muted: #484f58;
-      --lavender: #3fb950; --green: #7ee787; --blue: #58a6ff;
-      --surface-border: #30363d;
-    }
-    /* ==================== 复古主题 ==================== */
-    body.theme-vintage {
-      --bg: #fdf6e3; --surface: #eee8d5; --surface2: #ddd6c1;
-      --text: #657b83; --subtext: #586e75; --muted: #93a1a1;
-      --lavender: #6c71c4; --green: #859900; --blue: #268bd2;
-      --surface-border: #ddd6c1;
-    }
-
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: var(--bg); color: var(--text);
-      height: 100vh; display: flex; flex-direction: column;
-    }
-
-    /* ===== 头部 ===== */
-    header {
-      background: var(--surface); padding: 10px 20px;
-      display: flex; align-items: center; gap: 10px;
-      border-bottom: 1px solid var(--surface-border);
-    }
-    header h1 { font-size: 1rem; color: var(--lavender); white-space: nowrap; }
-    .header-meta { font-size: 0.72rem; color: var(--muted); display: flex; gap: 12px; }
-    .save-indicator { display: flex; align-items: center; gap: 4px; color: var(--green); font-size: 0.72rem; }
-    .save-indicator.saving { color: var(--lavender); }
-    .save-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
-    .save-dot.saving { animation: pulse 0.8s ease-in-out infinite; }
-    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
-
-    /* ===== 工具栏 ===== */
-    .toolbar {
-      background: var(--surface);
-      padding: 6px 16px; display: flex; flex-wrap: wrap; gap: 4px;
-      border-bottom: 1px solid var(--surface-border);
-    }
-    .toolbar button {
-      background: var(--surface2); color: var(--text);
-      border: none; padding: 5px 12px; border-radius: 6px;
-      cursor: pointer; font-size: 0.78rem; transition: background 0.15s;
-    }
-    .toolbar button:hover { background: var(--lavender); color: var(--bg); }
-    .toolbar-sep { width: 1px; background: var(--surface-border); margin: 0 4px; align-self: stretch; }
-
-    /* ===== 主题选择 ===== */
-    .theme-select { margin-left: auto; }
-    #themeSelect {
-      background: var(--surface2); color: var(--text);
-      border: 1px solid var(--surface-border);
-      padding: 4px 10px; border-radius: 6px; font-size: 0.78rem;
-      cursor: pointer;
-    }
-
-    /* ===== 编辑区 ===== */
-    .container { display: flex; flex: 1; overflow: hidden; }
-    .pane { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
-    .pane-label {
-      background: var(--surface); padding: 5px 14px;
-      font-size: 0.7rem; color: var(--muted); text-transform: uppercase;
-      letter-spacing: 0.06em; border-bottom: 1px solid var(--surface-border);
-    }
-    #editor {
-      flex: 1; background: var(--bg); color: var(--text);
-      border: none; outline: none; padding: 16px;
-      font-family: "JetBrains Mono", "Fira Code", "Courier New", monospace;
-      font-size: 0.88rem; line-height: 1.7; resize: none;
-      border-right: 1px solid var(--surface-border);
-      /* 自动保存水印 */
-      background-image: linear-gradient(transparent 50px, var(--surface-border) 50px);
-      background-size: 100% 1.7em;
-      background-attachment: local;
-    }
-    /* 文件拖入遮罩 */
-    #dropOverlay {
-      position: fixed; inset: 0; background: rgba(203,166,247,0.15);
-      border: 3px dashed var(--lavender); z-index: 1000;
-      display: none; align-items: center; justify-content: center;
-      font-size: 1.4rem; color: var(--lavender); pointer-events: none;
-    }
-    #dropOverlay.show { display: flex; }
-
-    /* ===== 预览区 ===== */
-    #preview {
-      flex: 1; padding: 16px 24px; overflow-y: auto; background: var(--bg);
-      line-height: 1.8;
-    }
-    #preview::-webkit-scrollbar { width: 6px; }
-    #preview::-webkit-scrollbar-thumb { background: var(--surface2); border-radius: 3px; }
-    #preview h1,#preview h2,#preview h3,#preview h4,#preview h5,#preview h6 { color: var(--lavender); margin: 1em 0 0.5em; }
-    #preview h1 { font-size: 1.7rem; border-bottom: 2px solid var(--surface-border); padding-bottom: 0.3em; }
-    #preview h2 { font-size: 1.3rem; border-bottom: 1px solid var(--surface-border); padding-bottom: 0.2em; }
-    #preview h3 { font-size: 1.1rem; }
-    #preview p { margin: 0.55em 0; }
-    #preview code {
-      background: var(--surface2); padding: 2px 6px; border-radius: 4px;
-      font-family: monospace; font-size: 0.88em; color: var(--green);
-    }
-    #preview pre {
-      background: var(--surface); border: 1px solid var(--surface-border);
-      border-radius: 8px; padding: 14px; overflow-x: auto; margin: 1em 0;
-    }
-    #preview pre code { background: none; padding: 0; color: var(--green); }
-    #preview blockquote {
-      border-left: 4px solid var(--lavender); padding-left: 14px;
-      color: var(--subtext); margin: 1em 0;
-    }
-    #preview a { color: var(--blue); }
-    #preview ul,#preview ol { padding-left: 1.5em; margin: 0.5em 0; }
-    #preview li { margin: 0.25em 0; }
-    #preview table { border-collapse: collapse; width: 100%; margin: 1em 0; }
-    #preview th,#preview td { border: 1px solid var(--surface-border); padding: 7px 12px; }
-    #preview th { background: var(--surface); color: var(--lavender); }
-    #preview tr:nth-child(even) { background: var(--surface); }
-    #preview img { max-width: 100%; border-radius: 6px; }
-    #preview hr { border: none; border-top: 1px solid var(--surface-border); margin: 1.5em 0; }
-
-    /* ===== 分隔条 ===== */
-    .divider {
-      width: 4px; background: var(--surface-border); cursor: col-resize;
-      transition: background 0.2s; flex-shrink: 0;
-    }
-    .divider:hover { background: var(--lavender); }
-
-    /* ===== 底部状态栏 ===== */
-    .statusbar {
-      background: var(--surface); padding: 3px 14px;
-      font-size: 0.68rem; color: var(--muted); display: flex; gap: 14px;
-      border-top: 1px solid var(--surface-border);
-    }
-    .statusbar button {
-      background: var(--surface2); color: var(--text);
-      border: none; padding: 1px 8px; border-radius: 3px;
-      cursor: pointer; font-size: 0.68rem;
-    }
-    .statusbar button:hover { background: var(--lavender); color: var(--bg); }
-    .statusbar-right { margin-left: auto; display: flex; gap: 6px; }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Markdown Preview v3.0</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.10.0/styles/github.min.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#ffffff;--surface:#f6f8fa;--border:#d1d5da;--text:#24292f;
+  --accent:#0969da;--toolbar-bg:#f6f8fa;--preview-bg:#ffffff;
+}
+[data-theme=dark]{
+  --bg:#0d1117;--surface:#161b22;--border:#30363d;--text:#c9d1d9;
+  --accent:#58a6ff;--toolbar-bg:#161b22;--preview-bg:#0d1117;
+}
+[data-theme=dracula]{
+  --bg:#282a36;--surface:#383a4a;--border:#44475a;--text:#f8f8f2;
+  --accent:#bd93f9;--toolbar-bg:#383a4a;--preview-bg:#282a36;
+}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+header{display:flex;align-items:center;gap:8px;padding:8px 16px;border-bottom:1px solid var(--border);background:var(--toolbar-bg);flex-wrap:wrap}
+header h1{font-size:14px;color:var(--accent);white-space:nowrap}
+.btn{background:transparent;border:1px solid var(--border);color:var(--text);padding:4px 10px;border-radius:6px;font-size:12px;cursor:pointer;font-family:inherit;white-space:nowrap;transition:all .15s}
+.btn:hover{background:var(--border)}
+.btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.sep{width:1px;height:20px;background:var(--border);margin:0 4px}
+.spacer{flex:1}
+.stats{font-size:11px;color:var(--text);opacity:.6;white-space:nowrap}
+select{background:var(--surface);border:1px solid var(--border);color:var(--text);padding:4px 8px;border-radius:6px;font-size:12px;font-family:inherit;cursor:pointer}
+/* Toolbar */
+.toolbar{display:flex;align-items:center;gap:4px;padding:6px 12px;background:var(--toolbar-bg);border-bottom:1px solid var(--border);flex-wrap:wrap}
+.tool-btn{background:transparent;border:1px solid transparent;color:var(--text);padding:4px 8px;border-radius:4px;font-size:13px;cursor:pointer;font-family:monospace;font-weight:700;transition:all .1s;min-width:28px;text-align:center}
+.tool-btn:hover{background:var(--border);border-color:var(--border)}
+.tool-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+/* Main split */
+.split{display:flex;flex:1;min-height:0;overflow:hidden}
+.pane{flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden}
+.pane-header{display:flex;align-items:center;gap:6px;padding:6px 12px;background:var(--toolbar-bg);border-bottom:1px solid var(--border);font-size:11px;color:var(--text);opacity:.6;text-transform:uppercase;letter-spacing:1px}
+.pane-header .dot{width:6px;height:6px;border-radius:50%;background:currentColor}
+.resize{width:4px;background:var(--border);cursor:col-resize;flex-shrink:0;transition:background .15s;position:relative}
+.resize:hover,.resize.dragging{background:var(--accent)}
+/* Editor */
+textarea{width:100%;flex:1;border:none;resize:none;background:var(--bg);color:var(--text);font-family:'SF Mono','Fira Code',monospace;font-size:14px;line-height:1.7;padding:16px;outline:none;tab-size:2}
+/* Preview */
+.preview{flex:1;overflow:auto;padding:20px 32px;background:var(--preview-bg)}
+.preview h1,.preview h2,.preview h3,.preview h4,.preview h5,.preview h6{border-bottom:1px solid var(--border);padding-bottom:8px;margin:24px 0 12px}
+.preview h1{font-size:2em}.preview h2{font-size:1.5em}.preview h3{font-size:1.25em}
+.preview p{line-height:1.8;margin:12px 0}
+.preview code{background:var(--surface);padding:2px 6px;border-radius:4px;font-size:.9em;font-family:'SF Mono',monospace}
+.preview pre{background:var(--surface);padding:14px;border-radius:8px;overflow-x:auto;margin:16px 0}
+.preview pre code{background:none;padding:0}
+.preview blockquote{border-left:4px solid var(--accent);margin:16px 0;padding:4px 16px;opacity:.8}
+.preview table{border-collapse:collapse;width:100%;margin:16px 0}
+.preview th,.preview td{border:1px solid var(--border);padding:8px 12px}
+.preview th{background:var(--surface)}
+.preview img{max-width:100%;border-radius:8px}
+.preview a{color:var(--accent)}
+.preview ul,.preview ol{margin:12px 0;padding-left:24px;line-height:1.8}
+.preview li{margin:4px 0}
+.preview hr{border:none;border-top:1px solid var(--border);margin:24px 0}
+/* TOC */
+.toc-panel{display:none;width:220px;background:var(--surface);border-left:1px solid var(--border);overflow:auto;flex-shrink:0;padding:12px}
+.toc-panel.visible{display:block}
+.toc-panel h4{font-size:11px;text-transform:uppercase;letter-spacing:1px;opacity:.6;margin-bottom:10px}
+.toc-item{display:block;padding:4px 8px;border-radius:4px;font-size:12px;color:var(--text);text-decoration:none;margin-bottom:2px;transition:background .1s}
+.toc-item:hover{background:var(--border)}
+.toc-item.level-2{padding-left:16px;font-size:11px}
+.toc-item.level-3{padding-left:28px;font-size:11px}
+/* Status */
+.status{position:fixed;bottom:12px;right:16px;background:var(--surface);border:1px solid var(--border);padding:6px 12px;border-radius:8px;font-size:11px;opacity:.8;z-index:100}
+.status.saved{color:var(--accent)}
+.status.error{color:#cf222e}
+/* Drop zone */
+.drop-overlay{position:fixed;inset:0;background:rgba(9,105,218,.15);border:3px dashed var(--accent);display:none;align-items:center;justify-content:center;z-index:200;font-size:20px;color:var(--accent);pointer-events:none}
+.drop-overlay.active{display:flex}
+/* Scroll sync */
+.pane.sync-scroll .preview::-webkit-scrollbar{width:8px}
+</style>
 </head>
 <body>
-  <!-- 文件拖入遮罩 -->
-  <div id="dropOverlay">📂 释放文件以加载 Markdown</div>
 
-  <!-- 头部 -->
-  <header>
-    <h1>📝 Markdown Preview Tool v2</h1>
-    <div class="header-meta">
-      <span id="filenameDisplay">未命名.md</span>
-      <div class="save-indicator" id="saveIndicator">
-        <div class="save-dot" id="saveDot"></div>
-        <span id="saveText">已保存</span>
-      </div>
-    </div>
-  </header>
+<header>
+  <h1>Markdown Preview</h1>
+  <span style="font-size:11px;opacity:.5">v3.0</span>
+  <div class="sep"></div>
+  <select id="theme-select" title="主题">
+    <option value="light">Light</option>
+    <option value="dark">Dark</option>
+    <option value="dracula">Dracula</option>
+  </select>
+  <button class="btn" onclick="insertBold()" title="Ctrl+B">B</button>
+  <button class="btn" onclick="insertItalic()" title="Ctrl+I">I</button>
+  <div class="sep"></div>
+  <button class="btn" onclick="exportHTML()">导出 HTML</button>
+  <button class="btn" onclick="exportPDF()">导出 PDF</button>
+  <button class="btn" onclick="copyHTML()">复制 HTML</button>
+  <div class="sep"></div>
+  <button class="btn" id="toc-btn" onclick="toggleTOC()" title="目录">目录</button>
+  <div class="spacer"></div>
+  <span class="stats" id="stats-bar"></span>
+</header>
 
-  <!-- 工具栏 -->
-  <div class="toolbar">
-    <button onclick="insertMd('**粗体文字**')" title="粗体（Ctrl+B）">B</button>
-    <button onclick="insertMd('*斜体文字*')" title="斜体（Ctrl+I）"><em>I</em></button>
-    <button onclick="insertMd('~~删除线~~')" title="删除线"><s>S</s></button>
-    <button onclick="insertMd('# 标题1\n')" title="一级标题">H1</button>
-    <button onclick="insertMd('## 标题2\n')" title="二级标题">H2</button>
-    <button onclick="insertMd('### 标题3\n')" title="三级标题">H3</button>
-    <div class="toolbar-sep"></div>
-    <button onclick="insertMd('`行内代码`')" title="行内代码">&lt;/&gt;</button>
-    <button onclick="insertMd('\n```javascript\n// 代码块\n```\n')" title="代码块">```</button>
-    <button onclick="insertMd('\n```python\n# Python\n```\n')" title="Python 代码块">Py</button>
-    <button onclick="insertMd('\n```html\n&lt;!-- HTML --&gt;\n```\n')" title="HTML 代码块">HTML</button>
-    <div class="toolbar-sep"></div>
-    <button onclick="insertMd('[链接文字](https://example.com)')" title="链接">🔗</button>
-    <button onclick="insertMd('![图片描述](https://example.com/image.png)')" title="图片">🖼️</button>
-    <button onclick="insertMd('> 引用内容\n')" title="引用">❝</button>
-    <button onclick="insertMd('- 项目列表\n')" title="无序列表">•</button>
-    <button onclick="insertMd('1. 有序列表项\n')" title="有序列表">1.</button>
-    <button onclick="insertMd('- [ ] 待办事项\n')" title="待办事项">☐</button>
-    <button onclick="insertMd('- [x] 已完成事项\n')" title="已完成">☑</button>
-    <button onclick="insertMd('| 列1 | 列2 | 列3 |\n|------|------|------|\n| 数据 | 数据 | 数据 |\n')" title="表格">⊞</button>
-    <button onclick="insertMd('---\n')" title="分隔线">—</button>
-    <div class="toolbar-sep"></div>
-    <button onclick="loadSample()" title="加载示例">📋 示例</button>
-    <button onclick="openFile()" title="打开本地 .md 文件">📂 打开</button>
-    <button onclick="clearEditor()" title="清空编辑器">🗑 清空</button>
-    <button onclick="togglePreviewOnly()" id="previewToggleBtn" title="切换预览模式">🔲 全屏预览</button>
-    <button onclick="window.print()" title="打印或导出 PDF">🖨 打印</button>
+<div class="toolbar">
+  <button class="tool-btn" onclick="insertText('# ')" title="一级标题">H1</button>
+  <button class="tool-btn" onclick="insertText('## ')" title="二级标题">H2</button>
+  <button class="tool-btn" onclick="insertText('### ')" title="三级标题">H3</button>
+  <div class="sep" style="height:16px"></div>
+  <button class="tool-btn" onclick="insertBold()" title="粗体 **">B</button>
+  <button class="tool-btn" onclick="insertItalic()" title="斜体 *">I</button>
+  <button class="tool-btn" onclick="insertInlineCode()" title="行内代码">``</button>
+  <div class="sep" style="height:16px"></div>
+  <button class="tool-btn" onclick="insertLink()" title="链接">&#128279;</button>
+  <button class="tool-btn" onclick="insertImage()" title="图片">&#128247;</button>
+  <button class="tool-btn" onclick="insertCodeBlock()" title="代码块">&#60;/&#62;</button>
+  <div class="sep" style="height:16px"></div>
+  <button class="tool-btn" onclick="insertList()" title="无序列表">&#8226;</button>
+  <button class="tool-btn" onclick="insertOrderedList()" title="有序列表">1.</button>
+  <button class="tool-btn" onclick="insertTable()" title="表格">&#9638;</button>
+  <button class="tool-btn" onclick="insertHR()" title="分隔线">&#9131;</button>
+  <div class="sep" style="height:16px"></div>
+  <button class="tool-btn" onclick="insertBlockquote()" title="引用">&gt;</button>
+  <div class="spacer"></div>
+  <span style="font-size:11px;opacity:.4" id="auto-save-indicator">Auto-save: ON</span>
+</div>
 
-    <!-- 主题选择 -->
-    <div class="theme-select">
-      <select id="themeSelect" onchange="switchTheme(this.value)">
-        <option value="mocha">🌙 Catppuccin Mocha</option>
-        <option value="light">☀️ Light</option>
-        <option value="green">💚 Green GitHub</option>
-        <option value="vintage">📜 Vintage</option>
-      </select>
-    </div>
-    <input type="file" id="fileInput" accept=".md,.markdown,.txt" style="display:none" onchange="handleFileOpen(this)" />
+<div class="split" id="split">
+  <div class="pane" id="editor-pane">
+    <div class="pane-header"><span class="dot"></span>Editor</div>
+    <textarea id="editor" placeholder="# 开始编写 Markdown...
+
+## 功能
+- 实时预览
+- 代码高亮
+- 多主题
+- 同步滚动
+- 导出 HTML / PDF
+- 目录生成
+- 自动保存
+
+## 键盘快捷键
+- Ctrl+B 粗体
+- Ctrl+I 斜体
+- Ctrl+K 链接
+- Ctrl+S 导出 HTML
+
+拖拽 .md 文件到窗口即可打开！
+" spellcheck="false"></textarea>
   </div>
-
-  <!-- 编辑器 + 预览 -->
-  <div class="container" id="mainContainer">
-    <div class="pane" id="editorPane">
-      <div class="pane-label">✏️ Markdown 编辑器</div>
-      <textarea id="editor" placeholder="在此输入 Markdown，或拖入 .md 文件到窗口..."></textarea>
-    </div>
-    <div class="divider" id="divider"></div>
-    <div class="pane" id="previewPane">
-      <div class="pane-label">👁️ HTML 预览</div>
-      <div id="preview"></div>
-    </div>
+  <div class="resize" id="resize-handle"></div>
+  <div class="pane sync-scroll" id="preview-pane">
+    <div class="pane-header"><span class="dot"></span>Preview</div>
+    <div class="preview" id="preview"></div>
   </div>
-
-  <!-- 状态栏 -->
-  <div class="statusbar">
-    <span id="charCount">字符: 0</span>
-    <span id="wordCount">单词: 0</span>
-    <span id="lineCount">行数: 0</span>
-    <span id="tocCount">目录: 0</span>
-    <span id="editorScrollPos">行 1</span>
-    <div class="statusbar-right">
-      <button onclick="copyHtml()">📋 复制 HTML</button>
-      <button onclick="exportHtml()">💾 导出 HTML</button>
-      <button onclick="exportMd()">💾 导出 MD</button>
-    </div>
+  <div class="toc-panel" id="toc-panel">
+    <h4>目录</h4>
+    <div id="toc-list"></div>
   </div>
+</div>
 
-  <script>
-    // ==================== 状态管理 ====================
-    const STORAGE_KEY = 'md-preview-tool-v2-content';
-    const STORAGE_THEME_KEY = 'md-preview-tool-v2-theme';
-    const AUTO_SAVE_DELAY = 1500; // 自动保存延迟（毫秒）
-    let autoSaveTimer = null;
-    let isDirty = false;        // 是否未保存
-    let isSyncScrolling = false; // 同步滚动中
+<div class="drop-overlay" id="drop-overlay">📄 释放以打开 Markdown 文件</div>
+<div class="status" id="status"></div>
 
-    const editor = document.getElementById('editor');
-    const preview = document.getElementById('preview');
+<script>
+const editor = document.getElementById('editor');
+const preview = document.getElementById('preview');
+const statsBar = document.getElementById('stats-bar');
+const statusEl = document.getElementById('status');
+let renderTimer = null;
+let autoSaveTimer = null;
+let lastRendered = '';
 
-    // ==================== Marked 配置 ====================
-    marked.setOptions({ breaks: true, gfm: true });
-
-    // ==================== 渲染 + 统计 ====================
-    function render() {
-      const md = editor.value;
-      preview.innerHTML = marked.parse(md);
-      updateStats();
-      buildTOC(md);
-      if (isDirty) scheduleAutoSave();
-    }
-
-    function updateStats() {
-      const md = editor.value;
-      document.getElementById('charCount').textContent  = `字符: ${md.length}`;
-      document.getElementById('wordCount').textContent  = `单词: ${md.trim() ? md.trim().split(/\s+/).length : 0}`;
-      document.getElementById('lineCount').textContent  = `行数: ${md.split('\n').length}`;
-    }
-
-    function buildTOC(md) {
-      const headings = md.match(/^#{1,3}\s+.+$/gm) || [];
-      document.getElementById('tocCount').textContent = `标题: ${headings.length}`;
-    }
-
-    editor.addEventListener('input', () => { isDirty = true; render(); });
-
-    // ==================== 自动保存 ====================
-    function scheduleAutoSave() {
-      clearTimeout(autoSaveTimer);
-      showSaveStatus('saving');
-      autoSaveTimer = setTimeout(() => {
-        saveToLocalStorage();
-        isDirty = false;
-        showSaveStatus('saved');
-      }, AUTO_SAVE_DELAY);
-    }
-
-    function saveToLocalStorage() {
-      try {
-        localStorage.setItem(STORAGE_KEY, editor.value);
-        // 保存文件名
-        const fn = document.getElementById('filenameDisplay').textContent;
-        localStorage.setItem(STORAGE_KEY + '-filename', fn);
-      } catch (e) { console.warn('localStorage 不可用:', e); }
-    }
-
-    function loadFromLocalStorage() {
-      try {
-        const saved = localStorage.getItem(STORAGE_KEY);
-        if (saved) {
-          editor.value = saved;
-          const fn = localStorage.getItem(STORAGE_KEY + '-filename');
-          if (fn) document.getElementById('filenameDisplay').textContent = fn;
-          render();
-        } else {
-          loadSample();
-        }
-      } catch (e) { loadSample(); }
-    }
-
-    function showSaveStatus(status) {
-      const dot   = document.getElementById('saveDot');
-      const text  = document.getElementById('saveText');
-      const ind   = document.getElementById('saveIndicator');
-      if (status === 'saving') {
-        dot.className = 'save-dot saving';
-        text.textContent = '保存中...';
-        ind.className = 'save-indicator saving';
-      } else {
-        dot.className = 'save-dot';
-        text.textContent = '已保存';
-        ind.className = 'save-indicator';
-      }
-    }
-
-    // 页面卸载前保存
-    window.addEventListener('beforeunload', () => { if (isDirty) saveToLocalStorage(); });
-
-    // ==================== 工具栏操作 ====================
-    /** 在光标处插入 Markdown 语法 */
-    function insertMd(text) {
-      const start = editor.selectionStart;
-      const end   = editor.selectionEnd;
-      editor.value = editor.value.slice(0, start) + text + editor.value.slice(end);
-      editor.selectionStart = editor.selectionEnd = start + text.length;
-      editor.focus();
-      isDirty = true;
-      render();
-    }
-
-    /** 清空编辑器（确认） */
-    function clearEditor() {
-      if (confirm('确定清空编辑器内容？')) {
-        editor.value = '';
-        isDirty = true;
-        render();
-      }
-    }
-
-    /** 加载示例内容 */
-    function loadSample() {
-      editor.value = `# Markdown Preview Tool v2
-
-> 全新升级版 Markdown 实时预览工具，支持多主题、自动保存、文件拖入、同步滚动等强大功能
-
-## ✨ 新增功能（v2）
-
-- 🌙 **4 套主题**：Catppuccin Mocha / 浅色 / Green GitHub / 复古
-- 💾 **自动保存**：每 1.5 秒自动保存到浏览器本地存储
-- 📂 **文件拖入**：直接将 .md 文件拖入窗口加载内容
-- 🔄 **同步滚动**：编辑器与预览区同步滚动定位
-- 🔲 **全屏预览**：一键隐藏编辑器，全屏预览 Markdown 效果
-- 🖨 **打印导出**：浏览器打印功能直接导出 PDF
-
-## 📊 统计信息
-
-- 字符数、单词数、行数实时统计
-- 标题数量（目录计数）
-- 当前光标行号
-
-## 代码高亮
-
-\`\`\`javascript
-// 带语法高亮的代码块
-const greeting = (name) => {
-  console.log(\`Hello, \${name}!\`);
-};
-greeting('Markdown');
-\`\`\`
-
-\`\`\`python
-# Python 代码示例
-def fibonacci(n):
-    if n <= 1:
-        return n
-    return fibonacci(n - 1) + fibonacci(n - 2)
-
-print([fibonacci(i) for i in range(10)])
-\`\`\`
-
-## 表格示例
-
-| 功能          | 状态   | 说明               |
-|---------------|--------|--------------------|
-| 多主题        | ✅     | 4 套主题任意切换   |
-| 自动保存      | ✅     | 浏览器本地存储     |
-| 文件拖入      | ✅     | 支持拖入 .md 文件  |
-| 同步滚动      | ✅     | 编辑预览联动       |
-| 全屏预览      | ✅     | 专注阅读模式       |
-| 打印导出 PDF  | ✅     | 浏览器原生打印     |
-
-## 待办清单
-
-- [x] 基础 Markdown 渲染
-- [x] 多主题支持
-- [x] 自动保存
-- [ ] 云端同步（计划中）
-- [ ] 实时协作编辑（计划中）
-
----
-
-**提示**：按 \`Ctrl+B\` 加粗，\`Ctrl+I\` 斜体，\`Ctrl+S\` 手动保存。
-`;
-      isDirty = true;
-      document.getElementById('filenameDisplay').textContent = '示例文档.md';
-      render();
-    }
-
-    // ==================== 复制 / 导出 ====================
-    /** 复制渲染后的 HTML 源码 */
-    function copyHtml() {
-      navigator.clipboard.writeText(preview.innerHTML).then(() => {
-        showToast('✅ HTML 已复制到剪贴板！');
-      }).catch(() => showToast('❌ 复制失败，请重试'));
-    }
-
-    /** 导出为完整 HTML 文件 */
-    function exportHtml() {
-      const full = `<!DOCTYPE html>\n<html lang="zh-CN">\n<head>\n<meta charset="UTF-8">\n<title>${document.getElementById('filenameDisplay').textContent}</title>\n<style>\nbody{font-family:system-ui;max-width:800px;margin:40px auto;padding:0 20px;line-height:1.8}\nh1,h2,h3{color:#333;border-bottom:1px solid #eee;padding-bottom:.3em}\ncode{background:#f4f4f4;padding:2px 6px;border-radius:4px;font-size:.88em}\npre{background:#f4f4f4;padding:16px;border-radius:8px;overflow-x:auto}\npre code{background:none;padding:0}\nblockquote{border-left:4px solid #ddd;padding-left:16px;color:#666}\ntable{border-collapse:collapse;width:100%}\nth,td{border:1px solid #ddd;padding:8px 12px}\nth{background:#f9f9f9}\nimg{max-width:100%;border-radius:6px}\n</style>\n</head>\n<body>\n${preview.innerHTML}\n</body>\n</html>`;
-      downloadBlob(full, document.getElementById('filenameDisplay').textContent.replace(/\.md?$/, '') + '.html', 'text/html');
-      showToast('✅ HTML 文件已下载！');
-    }
-
-    /** 导出 Markdown 源文件 */
-    function exportMd() {
-      const fn = document.getElementById('filenameDisplay').textContent;
-      downloadBlob(editor.value, fn.endsWith('.md') ? fn : fn + '.md', 'text/markdown');
-      showToast('✅ Markdown 文件已下载！');
-    }
-
-    function downloadBlob(content, filename, type) {
-      const blob = new Blob([content], { type });
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = filename;
-      a.click();
-      URL.revokeObjectURL(a.href);
-    }
-
-    /** Toast 提示 */
-    function showToast(msg, duration = 2000) {
-      const el = document.createElement('div');
-      el.textContent = msg;
-      Object.assign(el.style, {
-        position: 'fixed', bottom: '60px', left: '50%', transform: 'translateX(-50%)',
-        background: 'var(--surface2)', color: 'var(--text)',
-        padding: '8px 20px', borderRadius: '20px', fontSize: '0.85rem',
-        zIndex: 9999, boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-      });
-      document.body.appendChild(el);
-      setTimeout(() => el.remove(), duration);
-    }
-
-    // ==================== 文件拖入 ====================
-    const dropOverlay = document.getElementById('dropOverlay');
-    document.addEventListener('dragover',  (e) => { e.preventDefault(); dropOverlay.classList.add('show'); });
-    document.addEventListener('dragleave',(e) => { if (!e.relatedTarget) dropOverlay.classList.remove('show'); });
-    document.addEventListener('drop', (e) => {
-      e.preventDefault();
-      dropOverlay.classList.remove('show');
-      const file = e.dataTransfer.files[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        editor.value = ev.target.result;
-        document.getElementById('filenameDisplay').textContent = file.name;
-        isDirty = true;
-        render();
-        showToast(`📂 已加载: ${file.name}`);
-      };
-      reader.readAsText(file, 'utf-8');
+// ── Render ──────────────────────────────────────────────────────────────────
+async function render() {
+  const md = editor.value;
+  if (!md) { preview.innerHTML = '<p style="opacity:.3;padding:20px">预览区域...</p>'; return; }
+  try {
+    const r = await fetch('/api/render', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ markdown: md })
     });
-
-    // ==================== 文件打开 ====================
-    function openFile() { document.getElementById('fileInput').click(); }
-    function handleFileOpen(input) {
-      const file = input.files[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        editor.value = ev.target.result;
-        document.getElementById('filenameDisplay').textContent = file.name;
-        isDirty = true;
-        render();
-      };
-      reader.readAsText(file, 'utf-8');
-      input.value = '';
+    const data = await r.json();
+    if (data.success) {
+      preview.innerHTML = data.html;
+      updateStats(data.stats);
+      updateTOC(data.toc);
+      lastRendered = md;
     }
+  } catch(e) {
+    // Fallback: basic rendering
+    preview.innerHTML = '<pre>' + md.replace(/</g,'&lt;') + '</pre>';
+  }
+}
 
-    // ==================== 主题切换 ====================
-    function switchTheme(theme) {
-      document.body.className = theme === 'mocha' ? '' : `theme-${theme}`;
-      try { localStorage.setItem(STORAGE_THEME_KEY, theme); } catch {}
-    }
+function updateStats(stats) {
+  statsBar.textContent = `📝 ${stats.words} 字 | ⏱ ${stats.readTime} | ${stats.chars} 字符`;
+}
 
-    function loadTheme() {
-      try {
-        const saved = localStorage.getItem(STORAGE_THEME_KEY);
-        if (saved && saved !== 'mocha') {
-          document.body.className = `theme-${saved}`;
-          document.getElementById('themeSelect').value = saved;
-        }
-      } catch {}
-    }
+function updateTOC(toc) {
+  const list = document.getElementById('toc-list');
+  if (!toc || toc.length === 0) { list.innerHTML = '<span style="font-size:11px;opacity:.4">无标题</span>'; return; }
+  list.innerHTML = toc.map(h => `<a class="toc-item level-${h.level}" href="#${h.id}">${h.text}</a>`).join('');
+  // Add IDs to preview headings
+  preview.querySelectorAll('h1,h2,h3').forEach((el, i) => {
+    if (toc[i]) el.id = toc[i].id;
+  });
+}
 
-    // ==================== 同步滚动 ====================
-    editor.addEventListener('scroll', () => {
-      if (isSyncScrolling) return;
-      const ratio = editor.scrollTop / (editor.scrollHeight - editor.clientHeight || 1);
-      const previewEl = document.getElementById('preview');
-      previewEl.scrollTop = ratio * (previewEl.scrollHeight - previewEl.clientHeight);
-    });
+function showStatus(msg, type='saved') {
+  statusEl.textContent = msg;
+  statusEl.className = 'status ' + type;
+  statusEl.style.display = 'block';
+  setTimeout(() => statusEl.style.display = 'none', 2500);
+}
 
-    preview.addEventListener('scroll', () => {
-      if (isSyncScrolling) return;
-      const ratio = preview.scrollTop / (preview.scrollHeight - preview.clientHeight || 1);
-      const target = ratio * (editor.scrollHeight - editor.clientHeight);
-      isSyncScrolling = true;
-      editor.scrollTop = target;
-      setTimeout(() => { isSyncScrolling = false; }, 50);
-    });
+// ── Debounced render ────────────────────────────────────────────────────────
+editor.addEventListener('input', () => {
+  clearTimeout(renderTimer);
+  renderTimer = setTimeout(render, 280);
+  scheduleAutoSave();
+});
 
-    // 同步滚动状态避免循环
-    let syncFlag = false;
-    editor.addEventListener('scroll', () => {
-      if (syncFlag) return;
-      syncFlag = true;
-      const ratio = editor.scrollTop / Math.max(editor.scrollHeight - editor.clientHeight, 1);
-      preview.scrollTop = ratio * Math.max(preview.scrollHeight - preview.clientHeight, 1);
-      setTimeout(() => { syncFlag = false; }, 60);
-    });
+// ── Keyboard shortcuts ──────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.ctrlKey || e.metaKey) {
+    if (e.key === 'b') { e.preventDefault(); insertBold(); }
+    else if (e.key === 'i') { e.preventDefault(); insertItalic(); }
+    else if (e.key === 'k') { e.preventDefault(); insertLink(); }
+    else if (e.key === 's') { e.preventDefault(); exportHTML(); }
+    else if (e.key === 'Enter') { e.preventDefault(); render(); }
+  }
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    insertAtCursor('  ');
+  }
+});
 
-    // ==================== 快捷键 ====================
-    editor.addEventListener('keydown', (e) => {
-      if (e.ctrlKey || e.metaKey) {
-        switch (e.key.toLowerCase()) {
-          case 'b': e.preventDefault(); insertMd('**粗体**'); break;
-          case 'i': e.preventDefault(); insertMd('*斜体*');  break;
-          case 's': e.preventDefault(); saveToLocalStorage(); isDirty = false; showSaveStatus('saved'); showToast('✅ 已保存'); break;
-        }
-      }
-    });
+// ── Toolbar insert helpers ─────────────────────────────────────────────────
+function insertAtCursor(text) {
+  const start = editor.selectionStart;
+  const end = editor.selectionEnd;
+  const before = editor.value.substring(0, start);
+  const after = editor.value.substring(end);
+  editor.value = before + text + after;
+  editor.selectionStart = editor.selectionEnd = start + text.length;
+  editor.focus();
+  render();
+}
 
-    // 光标行号
-    editor.addEventListener('click', updateCursorLine);
-    editor.addEventListener('keyup',  updateCursorLine);
-    function updateCursorLine() {
-      const line = editor.value.substring(0, editor.selectionStart).split('\n').length;
-      document.getElementById('editorScrollPos').textContent = `行 ${line}`;
-    }
+function wrapSelection(before, after = before) {
+  const start = editor.selectionStart;
+  const end = editor.selectionEnd;
+  const sel = editor.value.substring(start, end);
+  const newText = before + (sel || 'text') + after;
+  const beforePart = editor.value.substring(0, start);
+  const afterPart = editor.value.substring(end);
+  editor.value = beforePart + newText + afterPart;
+  const newStart = start + before.length;
+  const newEnd = newStart + (sel || 'text').length;
+  editor.selectionStart = newStart;
+  editor.selectionEnd = newEnd;
+  editor.focus();
+  render();
+}
 
-    // ==================== 分隔条拖拽 ====================
-    (function initDivider() {
-      const divider   = document.getElementById('divider');
-      const editorPane = document.getElementById('editorPane');
-      const previewPane = document.getElementById('previewPane');
-      const container  = document.getElementById('mainContainer');
-      let dragging = false;
+function insertText(text) { insertAtCursor(text); }
+function insertBold() { wrapSelection('**'); }
+function insertItalic() { wrapSelection('*'); }
+function insertInlineCode() { wrapSelection('`'); }
 
-      divider.addEventListener('mousedown', () => { dragging = true; document.body.style.cursor = 'col-resize'; });
-      document.addEventListener('mouseup',   () => { dragging = false; document.body.style.cursor = ''; });
-      document.addEventListener('mousemove', (e) => {
-        if (!dragging) return;
-        const rect = container.getBoundingClientRect();
-        const pct  = Math.max(20, Math.min(80, (e.clientX - rect.left) / rect.width * 100));
-        editorPane.style.flex   = 'none';
-        editorPane.style.width  = pct + '%';
-        previewPane.style.flex  = '1';
-      });
-    })();
+function insertLink() {
+  const start = editor.selectionStart;
+  const end = editor.selectionEnd;
+  const sel = editor.value.substring(start, end) || '链接文本';
+  const newText = `[${sel}](url)`;
+  editor.value = editor.value.substring(0, start) + newText + editor.value.substring(end);
+  editor.selectionStart = start + sel.length + 3;
+  editor.selectionEnd = start + sel.length + 6;
+  editor.focus();
+  render();
+}
 
-    // ==================== 全屏预览模式 ====================
-    let previewOnly = false;
-    function togglePreviewOnly() {
-      const ep  = document.getElementById('editorPane');
-      const div = document.getElementById('divider');
-      previewOnly = !previewOnly;
-      if (previewOnly) {
-        ep.style.display  = 'none';
-        div.style.display = 'none';
-        document.getElementById('previewToggleBtn').textContent = '✏️ 返回编辑';
-      } else {
-        ep.style.display  = '';
-        div.style.display = '';
-        editorPane.style.flex = ''; editorPane.style.width = '';
-        document.getElementById('previewToggleBtn').textContent = '🔲 全屏预览';
-      }
-    }
+function insertImage() { insertAtCursor('![alt text](image-url)'); }
 
-    // ==================== 初始化 ====================
-    loadTheme();
-    loadFromLocalStorage();
-    editor.focus();
-  </script>
+function insertCodeBlock() {
+  const start = editor.selectionStart;
+  const sel = editor.value.substring(start, editor.selectionEnd);
+  const newText = sel ? `\n\`\`\`\n${sel}\n\`\`\`\n` : '\n```\ncode here\n```\n';
+  insertAtCursor(newText);
+}
+
+function insertList() { insertAtCursor('\n- '); }
+function insertOrderedList() { insertAtCursor('\n1. '); }
+function insertHR() { insertAtCursor('\n---\n'); }
+
+function insertBlockquote() {
+  const start = editor.selectionStart;
+  const lineStart = editor.value.lastIndexOf('\n', start - 1) + 1;
+  const before = editor.value.substring(0, lineStart);
+  const after = editor.value.substring(lineStart);
+  editor.value = before + '> ' + after;
+  editor.selectionStart = editor.selectionEnd = start + 2;
+  editor.focus();
+  render();
+}
+
+function insertTable() {
+  const text = `
+| Column 1 | Column 2 | Column 3 |
+|----------|----------|----------|
+| Cell 1   | Cell 2   | Cell 3   |
+| Cell 4   | Cell 5   | Cell 6   |
+`.trim();
+  insertAtCursor('\n' + text + '\n');
+}
+
+// ── Export ─────────────────────────────────────────────────────────────────
+async function exportHTML() {
+  const r = await fetch('/api/export/html', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ markdown: editor.value, title: 'Markdown Document' })
+  });
+  const blob = await r.blob();
+  downloadBlob(blob, 'document.html');
+  showStatus('HTML exported!');
+}
+
+function exportPDF() {
+  // Use browser print dialog for PDF
+  const printWindow = window.open('', '_blank');
+  printWindow.document.write(`<!DOCTYPE html><html><head><title>Markdown PDF</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.10.0/styles/github.min.css">
+<style>body{max-width:800px;margin:0 auto;padding:40px 20px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;line-height:1.8}code{background:#f6f8fa;padding:2px 6px;border-radius:4px;font-size:.9em}pre{background:#f6f8fa;padding:16px;border-radius:8px;overflow-x:auto}blockquote{border-left:4px solid #0969da;margin:16px 0;padding-left:16px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #d1d5da;padding:8px 12px}th{background:#f6f8fa}img{max-width:100%}h1,h2,h3{border-bottom:1px solid #e1e4e8;padding-bottom:8px}@media print{body{padding:20px}}</style>
+</head><body>${preview.innerHTML}</body></html>`);
+  printWindow.document.close();
+  setTimeout(() => { printWindow.print(); printWindow.close(); }, 500);
+  showStatus('PDF ready (print dialog)...');
+}
+
+async function copyHTML() {
+  try {
+    await navigator.clipboard.writeText(preview.innerHTML);
+    showStatus('HTML copied!');
+  } catch(e) {
+    navigator.clipboard.writeText(preview.innerHTML);
+  }
+}
+
+function downloadBlob(blob, filename) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+}
+
+// ── TOC ─────────────────────────────────────────────────────────────────────
+function toggleTOC() {
+  const panel = document.getElementById('toc-panel');
+  panel.classList.toggle('visible');
+  document.getElementById('toc-btn').classList.toggle('active', panel.classList.contains('visible'));
+}
+
+// ── Theme ──────────────────────────────────────────────────────────────────
+document.getElementById('theme-select').addEventListener('change', function() {
+  document.documentElement.setAttribute('data-theme', this.value);
+  localStorage.setItem('md-theme', this.value);
+  render();
+});
+
+// Load saved theme
+const savedTheme = localStorage.getItem('md-theme');
+if (savedTheme) {
+  document.getElementById('theme-select').value = savedTheme;
+  document.documentElement.setAttribute('data-theme', savedTheme);
+}
+
+// ── Auto-save ───────────────────────────────────────────────────────────────
+const LS_KEY = 'md-preview-content';
+editor.value = localStorage.getItem(LS_KEY) || '';
+render();
+
+function scheduleAutoSave() {
+  clearTimeout(autoSaveTimer);
+  autoSaveTimer = setTimeout(() => {
+    localStorage.setItem(LS_KEY, editor.value);
+    showStatus('Auto-saved', 'saved');
+  }, 2000);
+}
+
+// ── Drag & Drop file open ──────────────────────────────────────────────────
+const dropOverlay = document.getElementById('drop-overlay');
+document.addEventListener('dragover', e => { e.preventDefault(); dropOverlay.classList.add('active'); });
+document.addEventListener('dragleave', e => { if (e.relatedTarget === null) dropOverlay.classList.remove('active'); });
+document.addEventListener('drop', async e => {
+  e.preventDefault();
+  dropOverlay.classList.remove('active');
+  const file = e.dataTransfer.files[0];
+  if (file && file.name.endsWith('.md')) {
+    const text = await file.text();
+    editor.value = text;
+    render();
+    scheduleAutoSave();
+    showStatus('Opened: ' + file.name);
+  }
+});
+
+// ── Resize handle ──────────────────────────────────────────────────────────
+const resizeHandle = document.getElementById('resize-handle');
+let dragging = false;
+resizeHandle.addEventListener('mousedown', () => { dragging = true; resizeHandle.classList.add('dragging'); document.body.style.cursor = 'col-resize'; });
+document.addEventListener('mousemove', e => {
+  if (!dragging) return;
+  const split = document.getElementById('split');
+  const rect = split.getBoundingClientRect();
+  const pct = ((e.clientX - rect.left) / rect.width) * 100;
+  const editorPane = document.getElementById('editor-pane');
+  editorPane.style.flex = `0 0 ${Math.max(20, Math.min(80, pct))}%`;
+});
+document.addEventListener('mouseup', () => { dragging = false; resizeHandle.classList.remove('dragging'); document.body.style.cursor = ''; });
+</script>
 </body>
 </html>

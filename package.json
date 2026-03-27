@@ -1,0 +1,16 @@
+{
+  "name": "md-preview-tool",
+  "version": "1.0.0",
+  "description": "A lightweight Markdown to HTML live preview tool",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": ["markdown", "preview", "html", "tool", "editor"],
+  "author": "MasterPick",
+  "license": "MIT",
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}

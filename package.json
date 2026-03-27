@@ -1,16 +1,18 @@
 {
-  "name": "md-preview-tool",
-  "version": "2.0.0",
-  "description": "A powerful Markdown live preview tool with multi-theme, auto-save, file drop, sync-scroll and more",
+  "name": "md-preview",
+  "version": "3.0.0",
+  "description": "Powerful Markdown live preview editor with multi-theme, auto-save, and sync-scroll",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js"
+    "dev": "node --watch server.js"
   },
-  "keywords": ["markdown", "preview", "html", "tool", "editor", "multi-theme", "auto-save"],
-  "author": "MasterPick",
-  "license": "MIT",
-  "engines": {
-    "node": ">=14.0.0"
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dompurify": "^3.1.6",
+    "express": "^4.19.2",
+    "highlight.js": "^11.10.0",
+    "jsdom": "^24.1.1",
+    "marked": "^14.1.3"
   }
 }

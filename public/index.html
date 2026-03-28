@@ -3,8 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Markdown Preview v3.0</title>
+<title>Markdown Preview v3.1</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.10.0/styles/github.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -25,10 +26,12 @@ header h1{font-size:14px;color:var(--accent);white-space:nowrap}
 .btn{background:transparent;border:1px solid var(--border);color:var(--text);padding:4px 10px;border-radius:6px;font-size:12px;cursor:pointer;font-family:inherit;white-space:nowrap;transition:all .15s}
 .btn:hover{background:var(--border)}
 .btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
 .sep{width:1px;height:20px;background:var(--border);margin:0 4px}
 .spacer{flex:1}
 .stats{font-size:11px;color:var(--text);opacity:.6;white-space:nowrap}
 select{background:var(--surface);border:1px solid var(--border);color:var(--text);padding:4px 8px;border-radius:6px;font-size:12px;font-family:inherit;cursor:pointer}
+input[type="text"]{background:var(--surface);border:1px solid var(--border);color:var(--text);padding:4px 8px;border-radius:6px;font-size:12px;font-family:inherit}
 /* Toolbar */
 .toolbar{display:flex;align-items:center;gap:4px;padding:6px 12px;background:var(--toolbar-bg);border-bottom:1px solid var(--border);flex-wrap:wrap}
 .tool-btn{background:transparent;border:1px solid transparent;color:var(--text);padding:4px 8px;border-radius:4px;font-size:13px;cursor:pointer;font-family:monospace;font-weight:700;transition:all .1s;min-width:28px;text-align:center}
@@ -60,6 +63,11 @@ textarea{width:100%;flex:1;border:none;resize:none;background:var(--bg);color:va
 .preview ul,.preview ol{margin:12px 0;padding-left:24px;line-height:1.8}
 .preview li{margin:4px 0}
 .preview hr{border:none;border-top:1px solid var(--border);margin:24px 0}
+/* Mermaid */
+.preview .mermaid{background:var(--surface);padding:16px;border-radius:8px;margin:16px 0;text-align:center}
+/* KaTeX */
+.preview .katex-block{margin:16px 0;text-align:center;overflow-x:auto;padding:8px}
+.preview .katex{font-size:1.1em}
 /* TOC */
 .toc-panel{display:none;width:220px;background:var(--surface);border-left:1px solid var(--border);overflow:auto;flex-shrink:0;padding:12px}
 .toc-panel.visible{display:block}
@@ -75,23 +83,60 @@ textarea{width:100%;flex:1;border:none;resize:none;background:var(--bg);color:va
 /* Drop zone */
 .drop-overlay{position:fixed;inset:0;background:rgba(9,105,218,.15);border:3px dashed var(--accent);display:none;align-items:center;justify-content:center;z-index:200;font-size:20px;color:var(--accent);pointer-events:none}
 .drop-overlay.active{display:flex}
+/* Fullscreen */
+body.fullscreen-editor .pane:first-child{flex:1!important}
+body.fullscreen-editor .pane:nth-child(2){display:none!important}
+body.fullscreen-editor .resize{display:none}
+body.fullscreen-preview .pane:first-child{display:none!important}
+body.fullscreen-preview .pane:nth-child(2){flex:1!important}
+body.fullscreen-preview .resize{display:none}
+/* Find & Replace */
+.find-panel{display:none;padding:8px 12px;background:var(--toolbar-bg);border-bottom:1px solid var(--border);gap:8px;align-items:center;flex-wrap:wrap}
+.find-panel.visible{display:flex}
+.find-panel input{width:150px}
+.find-result{font-size:11px;color:var(--text);opacity:.6}
+/* Template Dropdown */
+.template-dropdown{position:relative;display:inline-block}
+.template-menu{display:none;position:absolute;top:100%;left:0;background:var(--surface);border:1px solid var(--border);border-radius:8px;min-width:200px;z-index:100;box-shadow:0 4px 12px rgba(0,0,0,.15)}
+.template-menu.visible{display:block}
+.template-item{display:block;width:100%;padding:8px 12px;text-align:left;background:none;border:none;color:var(--text);font-size:12px;cursor:pointer;font-family:inherit}
+.template-item:hover{background:var(--border)}
+.template-item strong{display:block;font-size:13px}
+.template-item span{display:block;font-size:11px;opacity:.6;margin-top:2px}
 /* Scroll sync */
 .pane.sync-scroll .preview::-webkit-scrollbar{width:8px}
+/* Highlight */
+.highlight-match{background:#ffdf5d;color:#000;border-radius:2px}
+.highlight-current{background:#ff9500;color:#000}
 </style>
 </head>
 <body>
 
 <header>
   <h1>Markdown Preview</h1>
-  <span style="font-size:11px;opacity:.5">v3.0</span>
+  <span style="font-size:11px;opacity:.5">v3.1</span>
   <div class="sep"></div>
   <select id="theme-select" title="主题">
     <option value="light">Light</option>
     <option value="dark">Dark</option>
     <option value="dracula">Dracula</option>
   </select>
-  <button class="btn" onclick="insertBold()" title="Ctrl+B">B</button>
-  <button class="btn" onclick="insertItalic()" title="Ctrl+I">I</button>
+  <div class="template-dropdown">
+    <button class="btn" onclick="toggleTemplateMenu()">📝 模板</button>
+    <div class="template-menu" id="template-menu">
+      <button class="template-item" onclick="loadTemplate('readme')"><strong>README</strong><span>项目说明文档</span></button>
+      <button class="template-item" onclick="loadTemplate('tech-doc')"><strong>技术文档</strong><span>API 文档模板</span></button>
+      <button class="template-item" onclick="loadTemplate('blog')"><strong>博客文章</strong><span>Markdown 博客格式</span></button>
+      <button class="template-item" onclick="loadTemplate('changelog')"><strong>Changelog</strong><span>版本更新日志</span></button>
+      <button class="template-item" onclick="loadTemplate('mermaid')"><strong>Mermaid 图表</strong><span>流程图/时序图示例</span></button>
+      <button class="template-item" onclick="loadTemplate('math')"><strong>数学公式</strong><span>KaTeX 公式示例</span></button>
+    </div>
+  </div>
+  <button class="btn" onclick="toggleFindPanel()">🔍 查找</button>
+  <div class="sep"></div>
+  <button class="btn" onclick="toggleFullscreen('editor')" id="fs-editor-btn">全屏编辑</button>
+  <button class="btn" onclick="toggleFullscreen('preview')" id="fs-preview-btn">全屏预览</button>
+  <button class="btn" onclick="exitFullscreen()" id="fs-exit-btn" style="display:none">退出全屏</button>
   <div class="sep"></div>
   <button class="btn" onclick="exportHTML()">导出 HTML</button>
   <button class="btn" onclick="exportPDF()">导出 PDF</button>
@@ -101,6 +146,17 @@ textarea{width:100%;flex:1;border:none;resize:none;background:var(--bg);color:va
   <div class="spacer"></div>
   <span class="stats" id="stats-bar"></span>
 </header>
+
+<div class="find-panel" id="find-panel">
+  <input type="text" id="find-input" placeholder="查找...">
+  <input type="text" id="replace-input" placeholder="替换...">
+  <button class="btn" onclick="findNext()">下一个</button>
+  <button class="btn" onclick="findPrev()">上一个</button>
+  <button class="btn" onclick="replaceOne()">替换</button>
+  <button class="btn" onclick="replaceAll()">全部替换</button>
+  <span class="find-result" id="find-result"></span>
+  <button class="btn" onclick="toggleFindPanel()">✕</button>
+</div>
 
 <div class="toolbar">
   <button class="tool-btn" onclick="insertText('# ')" title="一级标题">H1</button>
@@ -121,6 +177,9 @@ textarea{width:100%;flex:1;border:none;resize:none;background:var(--bg);color:va
   <button class="tool-btn" onclick="insertHR()" title="分隔线">&#9131;</button>
   <div class="sep" style="height:16px"></div>
   <button class="tool-btn" onclick="insertBlockquote()" title="引用">&gt;</button>
+  <div class="sep" style="height:16px"></div>
+  <button class="tool-btn" onclick="insertMermaid()" title="Mermaid 图表">图表</button>
+  <button class="tool-btn" onclick="insertMath()" title="数学公式">公式</button>
   <div class="spacer"></div>
   <span style="font-size:11px;opacity:.4" id="auto-save-indicator">Auto-save: ON</span>
 </div>
@@ -128,25 +187,7 @@ textarea{width:100%;flex:1;border:none;resize:none;background:var(--bg);color:va
 <div class="split" id="split">
   <div class="pane" id="editor-pane">
     <div class="pane-header"><span class="dot"></span>Editor</div>
-    <textarea id="editor" placeholder="# 开始编写 Markdown...
-
-## 功能
-- 实时预览
-- 代码高亮
-- 多主题
-- 同步滚动
-- 导出 HTML / PDF
-- 目录生成
-- 自动保存
-
-## 键盘快捷键
-- Ctrl+B 粗体
-- Ctrl+I 斜体
-- Ctrl+K 链接
-- Ctrl+S 导出 HTML
-
-拖拽 .md 文件到窗口即可打开！
-" spellcheck="false"></textarea>
+    <textarea id="editor" placeholder="# 开始编写 Markdown..." spellcheck="false"></textarea>
   </div>
   <div class="resize" id="resize-handle"></div>
   <div class="pane sync-scroll" id="preview-pane">
@@ -162,6 +203,10 @@ textarea{width:100%;flex:1;border:none;resize:none;background:var(--bg);color:va
 <div class="drop-overlay" id="drop-overlay">📄 释放以打开 Markdown 文件</div>
 <div class="status" id="status"></div>
 
+<!-- Mermaid & KaTeX -->
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+
 <script>
 const editor = document.getElementById('editor');
 const preview = document.getElementById('preview');
@@ -170,6 +215,19 @@ const statusEl = document.getElementById('status');
 let renderTimer = null;
 let autoSaveTimer = null;
 let lastRendered = '';
+let mermaidInitialized = false;
+
+// ── Mermaid Init ─────────────────────────────────────────────────────────────
+function initMermaid() {
+  if (typeof mermaid !== 'undefined' && !mermaidInitialized) {
+    mermaid.initialize({ 
+      startOnLoad: false, 
+      theme: document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default',
+      securityLevel: 'loose'
+    });
+    mermaidInitialized = true;
+  }
+}
 
 // ── Render ──────────────────────────────────────────────────────────────────
 async function render() {
@@ -187,11 +245,43 @@ async function render() {
       updateStats(data.stats);
       updateTOC(data.toc);
       lastRendered = md;
+      // 渲染 Mermaid 图表
+      renderMermaidInPreview();
+      // 渲染 KaTeX 公式
+      renderKatexInPreview();
     }
   } catch(e) {
-    // Fallback: basic rendering
     preview.innerHTML = '<pre>' + md.replace(/</g,'&lt;') + '</pre>';
   }
+}
+
+function renderMermaidInPreview() {
+  initMermaid();
+  const mermaidDivs = preview.querySelectorAll('.mermaid');
+  mermaidDivs.forEach(async (el, i) => {
+    if (el.dataset.rendered) return;
+    try {
+      const id = 'mermaid-' + i + '-' + Date.now();
+      const { svg } = await mermaid.render(id, el.textContent);
+      el.innerHTML = svg;
+      el.dataset.rendered = 'true';
+    } catch(e) {
+      el.innerHTML = '<span style="color:#cf222e">Mermaid 语法错误: ' + e.message + '</span>';
+    }
+  });
+}
+
+function renderKatexInPreview() {
+  const katexDivs = preview.querySelectorAll('.katex-block');
+  katexDivs.forEach(el => {
+    if (el.dataset.rendered) return;
+    try {
+      katex.render(el.dataset.latex, el, { displayMode: true, throwOnError: false });
+      el.dataset.rendered = 'true';
+    } catch(e) {
+      el.innerHTML = '<span style="color:#cf222e">公式错误: ' + e.message + '</span>';
+    }
+  });
 }
 
 function updateStats(stats) {
@@ -202,7 +292,6 @@ function updateTOC(toc) {
   const list = document.getElementById('toc-list');
   if (!toc || toc.length === 0) { list.innerHTML = '<span style="font-size:11px;opacity:.4">无标题</span>'; return; }
   list.innerHTML = toc.map(h => `<a class="toc-item level-${h.level}" href="#${h.id}">${h.text}</a>`).join('');
-  // Add IDs to preview headings
   preview.querySelectorAll('h1,h2,h3').forEach((el, i) => {
     if (toc[i]) el.id = toc[i].id;
   });
@@ -229,11 +318,20 @@ document.addEventListener('keydown', e => {
     else if (e.key === 'i') { e.preventDefault(); insertItalic(); }
     else if (e.key === 'k') { e.preventDefault(); insertLink(); }
     else if (e.key === 's') { e.preventDefault(); exportHTML(); }
+    else if (e.key === 'f') { e.preventDefault(); toggleFindPanel(); }
+    else if (e.key === 'h') { e.preventDefault(); toggleFindPanel(); }
     else if (e.key === 'Enter') { e.preventDefault(); render(); }
   }
   if (e.key === 'Tab') {
     e.preventDefault();
     insertAtCursor('  ');
+  }
+  if (e.key === 'Escape') {
+    exitFullscreen();
+    const fp = document.getElementById('find-panel');
+    if (fp.classList.contains('visible')) toggleFindPanel();
+    const tm = document.getElementById('template-menu');
+    if (tm.classList.contains('visible')) tm.classList.remove('visible');
   }
 });
 
@@ -316,6 +414,404 @@ function insertTable() {
   insertAtCursor('\n' + text + '\n');
 }
 
+// NEW: Mermaid & Math
+function insertMermaid() {
+  const text = `
+\`\`\`mermaid
+graph TD
+    A[开始] --> B{判断}
+    B -->|是| C[执行A]
+    B -->|否| D[执行B]
+    C --> E[结束]
+    D --> E
+\`\`\`
+`.trim();
+  insertAtCursor('\n' + text + '\n');
+}
+
+function insertMath() {
+  const text = `
+\`\`\`math
+E = mc^2
+\`\`\`
+
+行内公式: \`$x = \\frac{-b \\pm \\sqrt{b^2-4ac}}{2a}$\`
+`.trim();
+  insertAtCursor('\n' + text + '\n');
+}
+
+// ── Find & Replace ─────────────────────────────────────────────────────────
+let findMatches = [];
+let currentMatch = -1;
+
+function toggleFindPanel() {
+  const panel = document.getElementById('find-panel');
+  panel.classList.toggle('visible');
+  if (panel.classList.contains('visible')) {
+    document.getElementById('find-input').focus();
+  } else {
+    clearHighlights();
+  }
+}
+
+function findNext() {
+  const query = document.getElementById('find-input').value;
+  if (!query) return;
+  
+  if (findMatches.length === 0) {
+    findAll(query);
+  }
+  
+  if (findMatches.length > 0) {
+    currentMatch = (currentMatch + 1) % findMatches.length;
+    highlightCurrent();
+  }
+}
+
+function findPrev() {
+  const query = document.getElementById('find-input').value;
+  if (!query) return;
+  
+  if (findMatches.length === 0) {
+    findAll(query);
+  }
+  
+  if (findMatches.length > 0) {
+    currentMatch = (currentMatch - 1 + findMatches.length) % findMatches.length;
+    highlightCurrent();
+  }
+}
+
+function findAll(query) {
+  const text = editor.value;
+  findMatches = [];
+  currentMatch = -1;
+  
+  let pos = 0;
+  while ((pos = text.indexOf(query, pos)) !== -1) {
+    findMatches.push({ start: pos, end: pos + query.length });
+    pos += query.length;
+  }
+  
+  document.getElementById('find-result').textContent = findMatches.length > 0 
+    ? `${findMatches.length} 个匹配` 
+    : '无匹配';
+}
+
+function highlightCurrent() {
+  if (currentMatch < 0 || currentMatch >= findMatches.length) return;
+  
+  const match = findMatches[currentMatch];
+  editor.focus();
+  editor.selectionStart = match.start;
+  editor.selectionEnd = match.end;
+  
+  document.getElementById('find-result').textContent = 
+    `${currentMatch + 1}/${findMatches.length} 个匹配`;
+}
+
+function clearHighlights() {
+  findMatches = [];
+  currentMatch = -1;
+}
+
+function replaceOne() {
+  const query = document.getElementById('find-input').value;
+  const replacement = document.getElementById('replace-input').value;
+  if (!query) return;
+  
+  if (findMatches.length === 0) {
+    findAll(query);
+  }
+  
+  if (findMatches.length > 0 && currentMatch >= 0) {
+    const match = findMatches[currentMatch];
+    editor.value = editor.value.substring(0, match.start) + replacement + editor.value.substring(match.end);
+    render();
+    
+    // 重新查找
+    findMatches = [];
+    currentMatch = -1;
+    findAll(query);
+    if (findMatches.length > 0) {
+      currentMatch = 0;
+      highlightCurrent();
+    }
+  }
+}
+
+function replaceAll() {
+  const query = document.getElementById('find-input').value;
+  const replacement = document.getElementById('replace-input').value;
+  if (!query) return;
+  
+  const count = (editor.value.match(new RegExp(escapeRegExp(query), 'g')) || []).length;
+  editor.value = editor.value.split(query).join(replacement);
+  render();
+  
+  document.getElementById('find-result').textContent = `已替换 ${count} 处`;
+  findMatches = [];
+  currentMatch = -1;
+}
+
+function escapeRegExp(string) {
+  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// ── Templates ───────────────────────────────────────────────────────────────
+const templates = {
+  'readme': `# 项目名称
+
+简短的项目描述。
+
+## 功能特性
+
+- 功能 1
+- 功能 2
+- 功能 3
+
+## 安装
+
+\`\`\`bash
+npm install package-name
+\`\`\`
+
+## 使用
+
+\`\`\`javascript
+const lib = require('package-name');
+lib.doSomething();
+\`\`\`
+
+## API 文档
+
+| 方法 | 参数 | 返回值 |
+|------|------|--------|
+| \`method()\` | 无 | \`void\` |
+
+## License
+
+MIT
+`,
+  'tech-doc': `# API 文档
+
+## 概述
+
+API 基础路径: \`/api/v1\`
+
+## 认证
+
+所有请求需要在 Header 中携带:
+
+\`\`\`
+Authorization: Bearer <token>
+\`\`\`
+
+## 接口列表
+
+### GET /users
+
+获取用户列表
+
+**参数:**
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| page | int | 否 | 页码，默认 1 |
+| size | int | 否 | 每页数量，默认 20 |
+
+**响应:**
+
+\`\`\`json
+{
+  "code": 200,
+  "data": [...],
+  "total": 100
+}
+\`\`\`
+
+### POST /users
+
+创建用户
+
+**请求体:**
+
+\`\`\`json
+{
+  "name": "string",
+  "email": "string"
+}
+\`\`\`
+
+## 错误码
+
+| 错误码 | 说明 |
+|--------|------|
+| 400 | 请求参数错误 |
+| 401 | 未授权 |
+| 404 | 资源不存在 |
+`,
+  'blog': `---
+title: 文章标题
+date: 2026-03-28
+tags: [标签1, 标签2]
+---
+
+# 文章标题
+
+这里是文章摘要...
+
+## 正文
+
+正文内容...
+
+### 小节
+
+更多内容...
+
+\`\`\`javascript
+// 代码示例
+console.log('Hello');
+\`\`\`
+
+## 总结
+
+总结内容...
+`,
+  'changelog': `# Changelog
+
+All notable changes to this project will be documented in this file.
+
+## [1.0.0] - 2026-03-28
+
+### Added
+- 新增功能 A
+- 新增功能 B
+
+### Changed
+- 修改功能 C
+
+### Fixed
+- 修复 Bug D
+
+### Removed
+- 移除废弃功能 E
+
+---
+
+## [0.9.0] - 2026-03-01
+
+### Added
+- 初始版本发布
+`,
+  'mermaid': `# Mermaid 图表示例
+
+## 流程图
+
+\`\`\`mermaid
+graph TD
+    A[开始] --> B{条件判断}
+    B -->|是| C[执行操作A]
+    B -->|否| D[执行操作B]
+    C --> E[结束]
+    D --> E
+\`\`\`
+
+## 时序图
+
+\`\`\`mermaid
+sequenceDiagram
+    participant 用户
+    participant 前端
+    participant 后端
+    用户->>前端: 点击按钮
+    前端->>后端: 发送请求
+    后端-->>前端: 返回数据
+    前端-->>用户: 显示结果
+\`\`\`
+
+## 类图
+
+\`\`\`mermaid
+classDiagram
+    class Animal {
+        +String name
+        +int age
+        +makeSound()
+    }
+    class Dog {
+        +bark()
+    }
+    Animal <|-- Dog
+\`\`\`
+`,
+  'math': `# 数学公式示例
+
+## 块级公式
+
+\`\`\`math
+E = mc^2
+\`\`\`
+
+\`\`\`math
+\\int_{-\\infty}^{\\infty} e^{-x^2} dx = \\sqrt{\\pi}
+\`\`\`
+
+## 行内公式
+
+质能方程 \`$E = mc^2$\` 是物理学的基石。
+
+二次方程求根公式: \`$x = \\frac{-b \\pm \\sqrt{b^2-4ac}}{2a}$\`
+
+## 矩阵
+
+\`\`\`math
+\\begin{pmatrix}
+a & b \\\\
+c & d
+\\end{pmatrix}
+\\cdot
+\\begin{pmatrix}
+x \\\\
+y
+\\end{pmatrix}
+=
+\\begin{pmatrix}
+ax + by \\\\
+cx + dy
+\\end{pmatrix}
+\`\`\`
+`
+};
+
+function toggleTemplateMenu() {
+  const menu = document.getElementById('template-menu');
+  menu.classList.toggle('visible');
+}
+
+function loadTemplate(name) {
+  if (templates[name]) {
+    editor.value = templates[name];
+    render();
+    scheduleAutoSave();
+    showStatus('已加载模板: ' + name);
+  }
+  document.getElementById('template-menu').classList.remove('visible');
+}
+
+// ── Fullscreen ─────────────────────────────────────────────────────────────
+function toggleFullscreen(mode) {
+  document.body.classList.remove('fullscreen-editor', 'fullscreen-preview');
+  document.body.classList.add('fullscreen-' + mode);
+  document.getElementById('fs-exit-btn').style.display = 'inline-block';
+  render();
+}
+
+function exitFullscreen() {
+  document.body.classList.remove('fullscreen-editor', 'fullscreen-preview');
+  document.getElementById('fs-exit-btn').style.display = 'none';
+}
+
 // ── Export ─────────────────────────────────────────────────────────────────
 async function exportHTML() {
   const r = await fetch('/api/export/html', {
@@ -329,11 +825,11 @@ async function exportHTML() {
 }
 
 function exportPDF() {
-  // Use browser print dialog for PDF
   const printWindow = window.open('', '_blank');
   printWindow.document.write(`<!DOCTYPE html><html><head><title>Markdown PDF</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.10.0/styles/github.min.css">
-<style>body{max-width:800px;margin:0 auto;padding:40px 20px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;line-height:1.8}code{background:#f6f8fa;padding:2px 6px;border-radius:4px;font-size:.9em}pre{background:#f6f8fa;padding:16px;border-radius:8px;overflow-x:auto}blockquote{border-left:4px solid #0969da;margin:16px 0;padding-left:16px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #d1d5da;padding:8px 12px}th{background:#f6f8fa}img{max-width:100%}h1,h2,h3{border-bottom:1px solid #e1e4e8;padding-bottom:8px}@media print{body{padding:20px}}</style>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<style>body{max-width:800px;margin:0 auto;padding:40px 20px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;line-height:1.8}code{background:#f6f8fa;padding:2px 6px;border-radius:4px;font-size:.9em}pre{background:#f6f8fa;padding:16px;border-radius:8px;overflow-x:auto}blockquote{border-left:4px solid #0969da;margin:16px 0;padding-left:16px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #d1d5da;padding:8px 12px}th{background:#f6f8fa}img{max-width:100%}h1,h2,h3{border-bottom:1px solid #e1e4e8;padding-bottom:8px}.mermaid{background:#f6f8fa;padding:16px;border-radius:8px;margin:16px 0}@media print{body{padding:20px}}</style>
 </head><body>${preview.innerHTML}</body></html>`);
   printWindow.document.close();
   setTimeout(() => { printWindow.print(); printWindow.close(); }, 500);
@@ -367,7 +863,15 @@ function toggleTOC() {
 document.getElementById('theme-select').addEventListener('change', function() {
   document.documentElement.setAttribute('data-theme', this.value);
   localStorage.setItem('md-theme', this.value);
-  render();
+  // 更新 Mermaid 主题
+  if (mermaidInitialized) {
+    mermaid.initialize({ 
+      startOnLoad: false, 
+      theme: this.value === 'dark' ? 'dark' : 'default',
+      securityLevel: 'loose'
+    });
+    render();
+  }
 });
 
 // Load saved theme
@@ -420,6 +924,13 @@ document.addEventListener('mousemove', e => {
   editorPane.style.flex = `0 0 ${Math.max(20, Math.min(80, pct))}%`;
 });
 document.addEventListener('mouseup', () => { dragging = false; resizeHandle.classList.remove('dragging'); document.body.style.cursor = ''; });
+
+// 点击外部关闭模板菜单
+document.addEventListener('click', e => {
+  if (!e.target.closest('.template-dropdown')) {
+    document.getElementById('template-menu').classList.remove('visible');
+  }
+});
 </script>
 </body>
 </html>

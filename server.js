@@ -1,6 +1,10 @@
 /**
- * Markdown Preview Tool v3.0 - Express Server
+ * Markdown Preview Tool v3.1 - Express Server
  * 功能增强版：实时预览、代码高亮、多主题、导出、目录生成
+ * 
+ * v3.1 新增:
+ * - Mermaid 图表支持
+ * - KaTeX 数学公式支持
  */
 const express = require("express");
 const fs       = require("fs");
@@ -19,27 +23,64 @@ app.use(express.json({ limit: "5mb" }));
 app.use(express.static(path.join(__dirname, "public")));
 
 // ── Marked Config ─────────────────────────────────────────────────────────────
+const renderer = new marked.Renderer();
+
+// 自定义代码块渲染，支持 mermaid
+renderer.code = function(code, language) {
+  // Mermaid 图表
+  if (language === 'mermaid') {
+    return `<div class="mermaid">${code}</div>`;
+  }
+  // 数学公式块
+  if (language === 'math' || language === 'katex') {
+    return `<div class="katex-block" data-latex="${escapeHtml(code)}"></div>`;
+  }
+  // 普通代码块
+  if (language && hljs.getLanguage(language)) {
+    try {
+      const highlighted = hljs.highlight(code, { language }).value;
+      return `<pre><code class="hljs language-${language}">${highlighted}</code></pre>`;
+    } catch {}
+  }
+  try {
+    const highlighted = hljs.highlightAuto(code).value;
+    return `<pre><code class="hljs">${highlighted}</code></pre>`;
+  } catch {
+    return `<pre><code>${escapeHtml(code)}</code></pre>`;
+  }
+};
+
 marked.setOptions({
   gfm: true,
   breaks: true,
-  highlight: function(code, lang) {
-    if (lang && hljs.getLanguage(lang)) {
-      try { return hljs.highlight(code, { language: lang }).value; }
-      catch {}
-    }
-    try { return hljs.highlightAuto(code).value; }
-    catch { return code; }
-  },
+  renderer: renderer
 });
 
 // ── DOMPurify with JSDOM window ──────────────────────────────────────────────
 const { window } = new JSDOM("").window;
 const purify = DOMPurify(window);
 
+// 允许 mermaid 和 katex 相关的标签/属性
+purify.addHook('uponSanitizeElement', (node, data) => {
+  if (data.tagName === 'div') {
+    if (node.classList.contains('mermaid') || node.classList.contains('katex-block')) {
+      // 保留这些元素
+    }
+  }
+});
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 function renderMarkdown(md) {
   const rawHtml = marked.parse(md);
-  return purify.sanitize(rawHtml, { ADD_ATTR: ["target"] });
+  // 允许 mermaid 和 katex 类
+  return purify.sanitize(rawHtml, { 
+    ADD_ATTR: ["target", "data-latex"],
+    ADD_TAGS: ["div"]
+  });
+}
+
+function escapeHtml(str) {
+  return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
 function extractTOC(md) {
@@ -97,6 +138,7 @@ app.post("/api/export/html", (req, res) => {
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>${escapeHtml(title)}</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.10.0/styles/github.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
 <style>
 body{max-width:800px;margin:0 auto;padding:40px 20px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;line-height:1.8;color:#24292f}
 code{background:#f6f8fa;padding:2px 6px;border-radius:4px;font-size:.9em}
@@ -109,14 +151,25 @@ th{background:#f6f8fa}
 img{max-width:100%}
 a{color:#0366d6}
 h1,h2,h3{border-bottom:1px solid #e1e4e8;padding-bottom:8px}
+.mermaid{background:#f6f8fa;padding:16px;border-radius:8px;margin:16px 0;text-align:center}
+.katex-block{margin:16px 0;text-align:center;overflow-x:auto}
 </style>
 </head>
 <body>
 ${html}
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script>
+mermaid.initialize({startOnLoad:true});
+document.querySelectorAll('.katex-block').forEach(el=>{
+  try{katex.render(el.dataset.latex,el,{displayMode:true,throwOnError:false});}
+  catch(e){el.textContent=e.message;}
+});
+</script>
 </body>
 </html>`;
     res.setHeader("Content-Type", "text/html; charset=utf-8");
-    res.setHeader("Content-Disposition", `attachment; filename="${sanitizeFilename(title)}.html"`);
+    res.setHeader("Content-Disposition", `attachment; filename="${sanitizeFilename(title)}.html"`); 
     res.send(full);
   } catch (e) {
     res.status(500).json({ success: false, error: e.message });
@@ -159,20 +212,17 @@ app.post("/api/preview", (req, res) => {
 });
 
 // ── Utils ────────────────────────────────────────────────────────────────────
-function escapeHtml(str) {
-  return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-}
-
 function sanitizeFilename(name) {
   return String(name).replace(/[^a-zA-Z0-9_\-]/g, "_").substring(0, 64);
 }
 
 // ── Start ────────────────────────────────────────────────────────────────────
 app.listen(PORT, () => {
-  console.log(`Markdown Preview v3.0 running at http://localhost:${PORT}`);
+  console.log(`Markdown Preview v3.1 running at http://localhost:${PORT}`);
   console.log("  POST /api/render       - Render Markdown to HTML");
-  console.log("  POST /api/export/html   - Export as standalone HTML");
-  console.log("  POST /api/export/pdf    - Export for PDF (print)");
-  console.log("  GET  /api/preview/:id   - Load saved session");
-  console.log("  POST /api/preview       - Save session");
+  console.log("  POST /api/export/html  - Export as standalone HTML");
+  console.log("  POST /api/export/pdf   - Export for PDF (print)");
+  console.log("  GET  /api/preview/:id  - Load saved session");
+  console.log("  POST /api/preview      - Save session");
+  console.log("  NEW: Mermaid diagram & KaTeX math support");
 });

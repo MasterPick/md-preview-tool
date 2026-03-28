@@ -1,8 +1,9 @@
-# Markdown Preview v3.0
+# Markdown Preview v3.1
 
 > 功能强大的 Markdown 实时预览编辑器 | Powerful Markdown Live Preview Editor
 
 [![Node.js](https://img.shields.io/badge/Node.js-18%2B-green)](https://nodejs.org)
+[![License](https://img.shields.io/badge/License-MIT-blue)](LICENSE)
 
 ---
 
@@ -22,15 +23,27 @@
 | 复制 HTML | 一键复制渲染后的 HTML |
 | 拖拽打开 | 直接拖拽 .md 文件打开 |
 | 可调节布局 | 拖拽分割线调整编辑/预览比例 |
-| 键盘快捷键 | Ctrl+B/I/K/S 等 |
+| 键盘快捷键 | Ctrl+B/I/K/S/F 等 |
 | 字数统计 | 实时字数、字符数、预计阅读时间 |
+| **Mermaid 图表** | **[NEW]** 支持流程图、时序图、类图等 |
+| **KaTeX 数学公式** | **[NEW]** 支持 LaTeX 数学公式渲染 |
+| **Markdown 模板** | **[NEW]** 预设 README、技术文档、博客等模板 |
+| **全屏模式** | **[NEW]** 编辑器/预览区全屏切换 |
+| **查找替换** | **[NEW]** 编辑器内查找替换功能 |
 
 ---
 
 ## 快速开始 | Quick Start
 
 ```bash
+# 克隆项目
+git clone https://github.com/MasterPickSelf/md-preview.git
+cd md-preview
+
+# 安装依赖
 npm install
+
+# 启动服务
 npm start
 # 访问 http://localhost:3000
 ```
@@ -52,6 +65,61 @@ npm start
 { "markdown": "# Hello\n\nThis is **bold**." }
 ```
 
+**响应:**
+```json
+{
+  "success": true,
+  "html": "<h1>Hello</h1><p>This is <strong>bold</strong>.</p>",
+  "toc": [{ "level": 1, "text": "Hello", "id": "hello" }],
+  "stats": { "words": 5, "readTime": "< 1 min", "chars": 30 }
+}
+```
+
+---
+
+## Mermaid 图表支持
+
+使用 ` ```mermaid ` 代码块：
+
+````markdown
+```mermaid
+graph TD
+    A[开始] --> B{判断}
+    B -->|是| C[执行A]
+    B -->|否| D[执行B]
+```
+````
+
+支持：流程图、时序图、类图、状态图、甘特图等。
+
+---
+
+## KaTeX 数学公式支持
+
+使用 ` ```math ` 代码块或行内 `$...$`：
+
+````markdown
+```math
+E = mc^2
+```
+
+行内公式: $x = \frac{-b \pm \sqrt{b^2-4ac}}{2a}$
+````
+
+---
+
+## 键盘快捷键
+
+| 快捷键 | 功能 |
+|--------|------|
+| `Ctrl+B` | 粗体 |
+| `Ctrl+I` | 斜体 |
+| `Ctrl+K` | 链接 |
+| `Ctrl+S` | 导出 HTML |
+| `Ctrl+F` | 查找替换 |
+| `Tab` | 插入两个空格 |
+| `Esc` | 退出全屏/关闭面板 |
+
 ---
 
 ## 技术栈 | Tech Stack
@@ -60,6 +128,8 @@ npm start
 - **marked** - Markdown 解析
 - **highlight.js** - 代码语法高亮
 - **jsdom + dompurify** - 安全 HTML 渲染
+- **Mermaid** - 图表渲染
+- **KaTeX** - 数学公式渲染
 - **Vanilla JS** - 前端（零依赖）
 
 ---
